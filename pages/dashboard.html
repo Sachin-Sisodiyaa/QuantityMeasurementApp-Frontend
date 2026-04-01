@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quantity Measurement — Dashboard</title>
+  <link rel="stylesheet" href="../css/base.css" />
+  <link rel="stylesheet" href="../css/dashboard.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+</head>
+<body>
+
+  <!-- NAVBAR -->
+  <nav class="navbar">
+    <div class="navbar-brand">
+      <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
+        <rect x="2" y="11" width="22" height="4" rx="2" fill="white" opacity="0.9"/>
+        <rect x="2" y="11" width="3" height="9" rx="1.5" fill="white" opacity="0.7"/>
+        <rect x="21" y="6" width="3" height="14" rx="1.5" fill="white" opacity="0.7"/>
+        <circle cx="13" cy="8" r="3.5" fill="#fbbf24"/>
+      </svg>
+      <span class="brand-text">QUANTITY MEASUREMENT</span>
+    </div>
+    <div class="navbar-user">
+      <span>Hi, <span id="display-name"></span></span>
+      <div class="dot-online"></div>
+      <button class="btn-logout" onclick="handleLogout()">Logout</button>
+    </div>
+  </nav>
+
+  <!-- MAIN CONTENT -->
+  <main class="main-content">
+
+    <!-- Type Selection -->
+    <section class="section-card">
+      <div class="section-label">Choose Type</div>
+      <div class="type-grid">
+        <div class="type-card active" data-type="length" onclick="selectType('length')">
+          <span class="type-icon">📏</span>
+          <span>Length</span>
+        </div>
+        <div class="type-card" data-type="weight" onclick="selectType('weight')">
+          <span class="type-icon">⚖️</span>
+          <span>Weight</span>
+        </div>
+        <div class="type-card" data-type="temperature" onclick="selectType('temperature')">
+          <span class="type-icon">🌡️</span>
+          <span>Temperature</span>
+        </div>
+        <div class="type-card" data-type="volume" onclick="selectType('volume')">
+          <span class="type-icon">🧴</span>
+          <span>Volume</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Action Selection -->
+    <section class="section-card">
+      <div class="section-label">Choose Action</div>
+      <div class="action-tabs">
+        <button class="action-tab active" data-action="comparison" onclick="selectAction('comparison')">Comparison</button>
+        <button class="action-tab" data-action="conversion" onclick="selectAction('conversion')">Conversion</button>
+        <button class="action-tab" data-action="arithmetic" onclick="selectAction('arithmetic')">Arithmetic</button>
+      </div>
+    </section>
+
+    <!-- Value Inputs -->
+    <section class="section-card">
+
+      <!-- Conversion layout: value + unit-a side by side with unit-b -->
+      <div id="conversion-layout" class="hidden">
+        <div class="conversion-row">
+          <div class="conversion-val-col">
+            <div class="value-label-sm">Value</div>
+            <input class="value-input-big" type="number" id="val-a-conv" placeholder="Enter value" oninput="syncValA(); compute();" />
+            <select class="unit-select" id="unit-a-conv" onchange="syncUnitA(); compute();">
+              <option value="">From unit</option>
+            </select>
+          </div>
+          <div class="conversion-arrow">→</div>
+          <div class="conversion-unit-col">
+            <div class="value-label-sm">Convert To</div>
+            <div class="conversion-result-display" id="conv-result-display">—</div>
+            <select class="unit-select" id="unit-b-conv" onchange="syncUnitB(); compute();">
+              <option value="">To unit</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Default layout (comparison & arithmetic) -->
+      <div id="default-layout" class="values-grid">
+        <!-- Value A -->
+        <div class="value-col">
+          <div class="value-label-sm">Value A</div>
+          <input class="value-input-big" type="number" id="val-a" placeholder="Enter value" oninput="compute()" />
+          <select class="unit-select" id="unit-a" onchange="compute()">
+            <option value="">Select unit</option>
+          </select>
+        </div>
+        <!-- Value B -->
+        <div class="value-col" id="val-b-col">
+          <div class="value-label-sm" id="val-b-label">Value B</div>
+          <input class="value-input-big" type="number" id="val-b" placeholder="Enter value" oninput="compute()" />
+          <select class="unit-select" id="unit-b" onchange="compute()">
+            <option value="">Select unit</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Arithmetic Operators (hidden by default) -->
+      <div id="arith-op-row" class="arith-op-row hidden">
+        <div class="section-label" style="margin-bottom: 10px;">Operator</div>
+        <div class="op-tabs">
+          <button class="action-tab active" data-op="+" onclick="selectOp(this, '+')">+ Add</button>
+          <button class="action-tab" data-op="-" onclick="selectOp(this, '-')">− Subtract</button>
+          <button class="action-tab" data-op="*" onclick="selectOp(this, '*')">× Multiply</button>
+          <button class="action-tab" data-op="/" onclick="selectOp(this, '/')">÷ Divide</button>
+        </div>
+      </div>
+
+      <!-- Result -->
+      <div class="result-banner" id="result-banner">
+        Select units and enter values to begin
+      </div>
+    </section>
+
+  </main>
+
+  <!-- History FAB -->
+  <button class="fab" onclick="toggleHistory()" title="View History" aria-label="View calculation history">
+    🕑
+  </button>
+
+  <!-- History Panel -->
+  <div class="history-overlay" id="history-overlay" onclick="closeHistoryIfOutside(event)">
+    <div class="history-panel" role="dialog" aria-label="Calculation history">
+      <div class="history-header">
+        <h3>Calculation History</h3>
+        <div class="history-header-actions">
+          <button class="btn-clear-history" onclick="clearHistory()" aria-label="Clear all history">🗑 Clear All</button>
+          <button class="btn-close-history" onclick="toggleHistory()" aria-label="Close history">✕</button>
+        </div>
+      </div>
+      <div id="history-list"></div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <script src="../js/storage.js"></script>
+  <script src="../js/toast.js"></script>
+  <script src="../js/units.js"></script>
+  <script src="../js/compute.js"></script>
+  <script src="../js/history.js"></script>
+  <script src="../js/dashboard.js"></script>
+</body>
+</html>
