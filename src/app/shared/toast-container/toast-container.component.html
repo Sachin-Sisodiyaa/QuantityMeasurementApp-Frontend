@@ -1,0 +1,7 @@
+<div class="toast-container">
+  @for (toast of toasts(); track toast.id) {
+    <div class="toast" [class.error]="toast.isError" (click)="remove(toast.id)">
+      {{ toast.message }}
+    </div>
+  }
+</div>

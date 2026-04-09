@@ -1,0 +1,225 @@
+<nav class="navbar">
+  <div class="navbar-brand">
+    <img src="assets/logo/logo.png" alt="Logo" class="brand-logo">
+    <span class="brand-text">QUANTITY MEASUREMENT</span>
+  </div>
+
+  <div class="navbar-user">
+    @if (isAuthenticated) {
+      <span>Hi, <span id="display-name">{{ user?.fullName ? (user?.fullName | uppercase) : 'USER' }}</span></span>
+      <div class="dot-online"></div>
+      <button class="btn-logout" type="button" (click)="handleLogout()">Logout</button>
+    } @else {
+      <span>Hi, <span id="display-name">GUEST</span></span>
+      <button class="btn-logout" type="button" (click)="goToAuth()">Login / Register</button>
+    }
+  </div>
+</nav>
+
+<main class="main-content">
+  <section class="section-card">
+    <div class="section-label">Choose Type</div>
+    <div class="type-grid">
+      @for (card of typeCards; track card.key) {
+        <div
+          class="type-card"
+          [class.active]="currentType === card.key"
+          [attr.data-type]="card.key"
+          (click)="selectType(card.key)"
+        >
+          <span class="type-icon">{{ card.icon }}</span>
+          <span>{{ card.label }}</span>
+        </div>
+      }
+    </div>
+  </section>
+
+  <section class="section-card">
+    <div class="section-label">Choose Action</div>
+    <div class="action-tabs">
+      <button
+        class="action-tab"
+        [class.active]="currentAction === 'comparison'"
+        type="button"
+        (click)="selectAction('comparison')"
+      >
+        Comparison
+      </button>
+      <button
+        class="action-tab"
+        [class.active]="currentAction === 'conversion'"
+        type="button"
+        (click)="selectAction('conversion')"
+      >
+        Conversion
+      </button>
+      <button
+        class="action-tab"
+        [class.active]="currentAction === 'arithmetic'"
+        type="button"
+        (click)="selectAction('arithmetic')"
+      >
+        Arithmetic
+      </button>
+    </div>
+  </section>
+
+  <section class="section-card">
+    <div id="conversion-layout" [class.hidden]="currentAction !== 'conversion'">
+      <div class="conversion-row">
+        <div class="conversion-val-col">
+          <div class="value-label-sm">Value</div>
+          <input
+            class="value-input-big"
+            type="number"
+            id="val-a-conv"
+            placeholder="Enter value"
+            [(ngModel)]="valA"
+            name="valAConv"
+            (input)="compute()"
+          />
+          <select
+            class="unit-select"
+            id="unit-a-conv"
+            [(ngModel)]="unitA"
+            name="unitAConv"
+            (change)="compute()"
+          >
+            <option value="">From unit</option>
+            @for (unit of availableUnits; track unit) {
+              <option [value]="unit">{{ displayUnit(unit) }}</option>
+            }
+          </select>
+        </div>
+
+        <div class="conversion-arrow">&#8594;</div>
+
+        <div class="conversion-unit-col">
+          <div class="value-label-sm">Convert To</div>
+          <div class="conversion-result-display" id="conv-result-display">{{ conversionDisplay }}</div>
+          <select
+            class="unit-select"
+            id="unit-b-conv"
+            [(ngModel)]="unitB"
+            name="unitBConv"
+            (change)="compute()"
+          >
+            <option value="">To unit</option>
+            @for (unit of availableUnits; track unit) {
+              <option [value]="unit">{{ displayUnit(unit) }}</option>
+            }
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div id="default-layout" class="values-grid" [class.hidden]="currentAction === 'conversion'">
+      <div class="value-col">
+        <div class="value-label-sm">Value A</div>
+        <input
+          class="value-input-big"
+          type="number"
+          id="val-a"
+          placeholder="Enter value"
+          [(ngModel)]="valA"
+          name="valA"
+          (input)="compute()"
+        />
+        <select
+          class="unit-select"
+          id="unit-a"
+          [(ngModel)]="unitA"
+          name="unitA"
+          (change)="compute()"
+        >
+          <option value="">Select unit</option>
+          @for (unit of availableUnits; track unit) {
+            <option [value]="unit">{{ displayUnit(unit) }}</option>
+          }
+        </select>
+      </div>
+
+      <div class="value-col" id="val-b-col">
+        <div class="value-label-sm" id="val-b-label">Value B</div>
+        <input
+          class="value-input-big"
+          type="number"
+          id="val-b"
+          placeholder="Enter value"
+          [(ngModel)]="valB"
+          name="valB"
+          (input)="compute()"
+        />
+        <select
+          class="unit-select"
+          id="unit-b"
+          [(ngModel)]="unitB"
+          name="unitB"
+          (change)="compute()"
+        >
+          <option value="">Select unit</option>
+          @for (unit of availableUnits; track unit) {
+            <option [value]="unit">{{ displayUnit(unit) }}</option>
+          }
+        </select>
+      </div>
+    </div>
+
+    <div id="arith-op-row" class="arith-op-row" [class.hidden]="currentAction !== 'arithmetic'">
+      <div class="section-label" style="margin-bottom: 10px">Operator</div>
+      <div class="op-tabs">
+        <button class="action-tab" [class.active]="currentOp === '+'" type="button" (click)="selectOp('+')">
+          + Add
+        </button>
+        <button class="action-tab" [class.active]="currentOp === '-'" type="button" (click)="selectOp('-')">
+          &#8722; Subtract
+        </button>
+        <button class="action-tab" [class.active]="currentOp === '*'" type="button" (click)="selectOp('*')">
+          &#215; Multiply
+        </button>
+        <button class="action-tab" [class.active]="currentOp === '/'" type="button" (click)="selectOp('/')">
+          &#247; Divide
+        </button>
+      </div>
+    </div>
+
+    <div class="result-banner" id="result-banner" [class.success]="resultStyle === 'success'" [class.warning]="resultStyle === 'warning'">
+      {{ resultMessage }}
+    </div>
+  </section>
+</main>
+
+<button class="fab" type="button" (click)="toggleHistory()" title="View History" aria-label="View calculation history">
+  &#128337;
+</button>
+
+<div
+  class="history-overlay"
+  id="history-overlay"
+  [class.open]="historyOpen"
+  (click)="closeHistoryIfOutside($event)"
+>
+  <div class="history-panel" role="dialog" aria-label="Calculation history">
+    <div class="history-header">
+      <h3>Calculation History</h3>
+      <div class="history-header-actions">
+        <button class="btn-clear-history" type="button" (click)="clearHistory()">&#128465; Clear All</button>
+        <button class="btn-close-history" type="button" (click)="toggleHistory()">&#10005;</button>
+      </div>
+    </div>
+
+    <div id="history-list">
+      @if (!historyEntries.length) {
+        <div class="history-empty">No calculations yet. Start measuring!</div>
+      } @else {
+        @for (entry of historyEntries; track $index) {
+          <div class="history-item">
+            <strong>{{ entry.label }}</strong>
+            <div class="history-result">{{ entry.result }}</div>
+            <div class="history-meta">{{ entry.time }} &bull; {{ entry.date }} &bull; {{ entry.type }}</div>
+          </div>
+        }
+      }
+    </div>
+  </div>
+</div>

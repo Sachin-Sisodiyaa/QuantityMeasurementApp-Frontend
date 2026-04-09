@@ -1,0 +1,45 @@
+.oauth-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.callback-card {
+  width: min(560px, 100%);
+  background: var(--white);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  padding: 24px;
+}
+
+h1 {
+  font-family: var(--font-display);
+  margin: 0 0 10px;
+}
+
+p {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.error-text {
+  color: var(--red);
+}
+
+.actions {
+  margin-top: 16px;
+}
+
+.btn-primary {
+  height: 44px;
+  border-radius: 10px;
+  border: none;
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 800;
+  color: white;
+  background: var(--red);
+  padding: 0 16px;
+}

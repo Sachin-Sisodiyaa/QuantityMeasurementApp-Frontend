@@ -1,0 +1,13 @@
+<main class="oauth-page">
+  <section class="callback-card">
+    <h1>OAuth Callback</h1>
+    <p [class.error-text]="hasError">{{ message }}</p>
+    @if (hasError) {
+      <div class="actions">
+        <button class="btn-primary" type="button" routerLink="/login">
+          Back to Login
+        </button>
+      </div>
+    }
+  </section>
+</main>

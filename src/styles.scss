@@ -1,0 +1,60 @@
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=DM+Sans:wght@400;500;600&display=swap');
+
+:root {
+  --blue: #3d4cce;
+  --blue-dark: #2d3ab0;
+  --blue-light: #eef0fb;
+  --red: #e53935;
+  --red-light: #fff0f0;
+  --text: #1a1f36;
+  --text-muted: #6b7280;
+  --border: #e5e7eb;
+  --bg: #eef0fb;
+  --white: #ffffff;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --shadow: 0 8px 32px rgba(61, 76, 206, 0.1);
+  --radius: 16px;
+  --font-main: 'DM Sans', sans-serif;
+  --font-display: 'Nunito', sans-serif;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-main);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  cursor: pointer;
+  text-decoration: none;
+}
+
+button {
+  font-family: var(--font-main);
+  cursor: pointer;
+}
+
+input,
+select {
+  font-family: var(--font-main);
+}
+
+.hidden {
+  display: none !important;
+}
