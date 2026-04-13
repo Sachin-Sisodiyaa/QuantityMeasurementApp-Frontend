@@ -1,9 +1,10 @@
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable, tap } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
 import {
+  AuthConfig,
   AuthResponse,
   LoginRequest,
   RegisterRequest,
@@ -18,7 +19,6 @@ export class AuthService {
   private readonly http = inject(HttpClient);
   private readonly storage = inject(AuthStorageService);
   private readonly authUrl = `${environment.apiBaseUrl}/auth`;
-  private readonly oauthSuccessUrl = `${environment.backendOrigin}/oauth-success`;
   private readonly googleLoginUrl = `${environment.backendOrigin}/oauth2/authorization/google`;
 
   register(request: RegisterRequest): Observable<AuthResponse> {
@@ -33,11 +33,13 @@ export class AuthService {
       .pipe(tap((response) => this.persistAuth(response)));
   }
 
-  completeOAuth(token: string, email: string): Observable<AuthResponse> {
-    const params = new HttpParams().set('token', token).set('email', email);
-    return this.http
-      .get<AuthResponse>(this.oauthSuccessUrl, { params })
-      .pipe(tap((response) => this.persistAuth(response)));
+  getAuthConfig(): Observable<AuthConfig> {
+    return this.http.get<AuthConfig>(`${this.authUrl}/config`);
+  }
+
+  completeOAuth(token: string): Observable<UserProfile> {
+    this.storage.saveToken(token);
+    return this.fetchMe();
   }
 
   fetchMe(): Observable<UserProfile> {

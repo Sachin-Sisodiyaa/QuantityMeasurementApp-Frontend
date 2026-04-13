@@ -27,13 +27,12 @@ export class OauthSuccessPageComponent {
       .pipe(
         switchMap((params) => {
           const token = params.get('token');
-          const email = params.get('email');
 
-          if (!token || !email) {
-            throw new Error('Missing OAuth token or email in redirect URL.');
+          if (!token) {
+            throw new Error('Missing OAuth token in redirect URL.');
           }
 
-          return this.authService.completeOAuth(token, email);
+          return this.authService.completeOAuth(token);
         })
       )
       .subscribe({
@@ -46,8 +45,12 @@ export class OauthSuccessPageComponent {
         error: (error: HttpErrorResponse | Error) => {
           this.hasError = true;
           if (error instanceof HttpErrorResponse) {
+            if (typeof error.error === 'string' && error.error.trim()) {
+              this.message = error.error;
+              return;
+            }
             const apiError = error.error as ApiError;
-            this.message = apiError?.message ?? 'OAuth callback failed.';
+            this.message = apiError?.message ?? apiError?.error ?? 'OAuth callback failed.';
           } else {
             this.message = error.message;
           }

@@ -1,6 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { Observable } from 'rxjs';
+import { Observable, catchError, throwError } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
 import {
@@ -49,5 +49,22 @@ export class QuantityService {
 
   getErrorHistory(): Observable<QuantityMeasurementDto[]> {
     return this.http.get<QuantityMeasurementDto[]>(`${this.baseUrl}/history/errored`);
+  }
+
+  clearHistoryByMeasurementType(measurementType: MeasurementType): Observable<number> {
+    return this.http
+      .delete<number>(`${this.baseUrl}/history/type/${measurementType}`)
+      .pipe(
+        catchError((error) => {
+          if (error.status !== 405) {
+            return throwError(() => error);
+          }
+
+          return this.http.post<number>(
+            `${this.baseUrl}/history/type/${measurementType}/clear`,
+            {}
+          );
+        })
+      );
   }
 }

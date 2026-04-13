@@ -1,8 +1,8 @@
 export type MeasurementType =
-  | 'LengthUnit'
-  | 'VolumeUnit'
-  | 'WeightUnit'
-  | 'TemperatureUnit';
+  | 'Length'
+  | 'Volume'
+  | 'Weight'
+  | 'Temperature';
 
 export type OperationType = 'compare' | 'convert' | 'add' | 'subtract' | 'divide';
 
@@ -18,6 +18,7 @@ export interface QuantityInputDto {
 }
 
 export interface QuantityMeasurementDto {
+  id?: number;
   thisValue: number;
   thisUnit: string;
   thisMeasurementType: MeasurementType;
@@ -30,12 +31,14 @@ export interface QuantityMeasurementDto {
   resultUnit: string;
   resultMeasurementType: MeasurementType;
   errorMessage: string;
-  error: boolean;
+  isError: boolean;
+  createdAt?: string | null;
+  updatedAt?: string | null;
 }
 
 export const measurementUnits: Record<MeasurementType, string[]> = {
-  LengthUnit: ['FEET', 'INCHES', 'YARDS', 'CENTIMETERS'],
-  VolumeUnit: ['LITRE', 'MILLILITRE', 'GALLON'],
-  WeightUnit: ['KILOGRAM', 'GRAM', 'POUND'],
-  TemperatureUnit: ['CELSIUS', 'FAHRENHEIT', 'KELVIN']
+  Length: ['MM', 'CM', 'METER', 'KM', 'INCH', 'FOOT', 'YARD', 'MILE'],
+  Volume: ['ML', 'LITER', 'GALLON', 'PINT', 'CUBIC_METER'],
+  Weight: ['MG', 'GRAM', 'KG', 'OUNCE', 'POUND'],
+  Temperature: ['CELSIUS', 'FAHRENHEIT', 'KELVIN']
 };

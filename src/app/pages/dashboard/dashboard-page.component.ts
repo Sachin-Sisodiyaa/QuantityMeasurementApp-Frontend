@@ -3,6 +3,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Component, HostListener, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
+import { finalize, forkJoin, of } from 'rxjs';
 
 import { ApiError, UserProfile } from '../../core/models/auth.models';
 import {
@@ -45,6 +46,8 @@ interface HistoryEntry {
   styleUrl: './dashboard-page.component.scss'
 })
 export class DashboardPageComponent {
+  private static readonly historyClearStorageKey = 'qm_history_clear_markers';
+
   private readonly authService = inject(AuthService);
   private readonly quantityService = inject(QuantityService);
   private readonly toastService = inject(ToastService);
@@ -55,33 +58,35 @@ export class DashboardPageComponent {
       key: 'length',
       label: 'Length',
       icon: '\uD83D\uDCCF',
-      measurementType: 'LengthUnit'
+      measurementType: 'Length'
     },
     {
       key: 'weight',
       label: 'Weight',
       icon: '\u2696\uFE0F',
-      measurementType: 'WeightUnit'
+      measurementType: 'Weight'
     },
     {
       key: 'temperature',
       label: 'Temperature',
       icon: '\uD83C\uDF21\uFE0F',
-      measurementType: 'TemperatureUnit'
+      measurementType: 'Temperature'
     },
     {
       key: 'volume',
       label: 'Volume',
       icon: '\uD83E\uDDF4',
-      measurementType: 'VolumeUnit'
+      measurementType: 'Volume'
     }
   ];
 
   user: UserProfile | null = null;
   isAuthenticated = false;
+  isHistoryLoading = false;
+  isClearingHistory = false;
 
   currentType: UiTypeKey = 'length';
-  currentMeasurementType: MeasurementType = 'LengthUnit';
+  currentMeasurementType: MeasurementType = 'Length';
   currentAction: UiAction = 'comparison';
   currentOp: ArithmeticOp = '+';
 
@@ -89,7 +94,7 @@ export class DashboardPageComponent {
   valB: string | number | null = '';
   unitA = '';
   unitB = '';
-  availableUnits: string[] = measurementUnits.LengthUnit;
+  availableUnits: string[] = measurementUnits.Length;
 
   resultMessage = 'Select units and enter values to begin';
   resultStyle: BannerStyle = 'default';
@@ -97,6 +102,8 @@ export class DashboardPageComponent {
 
   historyOpen = false;
   historyEntries: HistoryEntry[] = [];
+  currentOperationCount = 0;
+  errorHistoryCount = 0;
 
   private requestCounter = 0;
   private activeRequest = 0;
@@ -118,6 +125,9 @@ export class DashboardPageComponent {
     this.availableUnits = measurementUnits[this.currentMeasurementType];
     this.clearInputs();
     this.compute();
+    if (this.historyOpen) {
+      this.loadHistory();
+    }
   }
 
   selectAction(action: UiAction): void {
@@ -164,20 +174,42 @@ export class DashboardPageComponent {
     if (!this.ensureAuthenticated('clear history')) {
       return;
     }
-    const user = this.user;
-    if (!user) {
-      return;
-    }
 
-    const confirmed = window.confirm('Clear all calculation history? This cannot be undone.');
-    if (!confirmed) {
-      return;
-    }
+    this.isClearingHistory = true;
+    this.quantityService
+      .clearHistoryByMeasurementType(this.currentMeasurementType)
+      .pipe(finalize(() => (this.isClearingHistory = false)))
+      .subscribe({
+        next: (deleted) => {
+          this.setHistoryClearMarker(this.currentMeasurementType, null);
+          this.historyEntries = [];
+          this.currentOperationCount = 0;
+          this.errorHistoryCount = 0;
+          this.historyOpen = false;
+          this.toastService.show(
+            deleted > 0
+              ? `${deleted} history entr${deleted === 1 ? 'y was' : 'ies were'} cleared.`
+              : 'No history found to clear for this measurement type.'
+          );
+        },
+        error: (error: HttpErrorResponse) => {
+          if (error.status === 404 || error.status === 405) {
+            const clearedAt = new Date().toISOString();
+            this.setHistoryClearMarker(this.currentMeasurementType, clearedAt);
+            this.historyEntries = [];
+            this.currentOperationCount = 0;
+            this.errorHistoryCount = 0;
+            this.historyOpen = false;
+            this.toastService.show('History cleared!');
+            return;
+          }
 
-    localStorage.removeItem(this.getHistoryKey(user.email));
-    this.historyEntries = [];
-    this.toastService.show('History cleared.');
-    this.historyOpen = false;
+          this.toastService.show(
+            this.extractApiError(error, 'Unable to clear history.'),
+            true
+          );
+        }
+      });
   }
 
   handleLogout(): void {
@@ -238,10 +270,7 @@ export class DashboardPageComponent {
         }
 
         this.setResult(message, style);
-        this.addHistoryEntry(
-          `Comparison: ${parsed.valA} ${parsed.unitA} vs ${parsed.valB} ${parsed.unitB}`,
-          message
-        );
+        this.loadHistory();
       },
       error: (error) => this.handleOperationError(error)
     });
@@ -294,10 +323,7 @@ export class DashboardPageComponent {
         this.conversionDisplay = `${converted} ${parsed.unitB}`;
         const message = `${parsed.valA} ${parsed.unitA} = ${converted} ${parsed.unitB}`;
         this.setResult(message, 'success');
-        this.addHistoryEntry(
-          `Conversion: ${parsed.valA} ${parsed.unitA} \u2192 ${parsed.unitB}`,
-          message
-        );
+        this.loadHistory();
       },
       error: (error) => this.handleOperationError(error)
     });
@@ -319,10 +345,6 @@ export class DashboardPageComponent {
         `${parsed.valA} ${parsed.unitA} \u00D7 ${parsed.valB} ${parsed.unitB} = ` +
         `${this.formatNumber(local)}`;
       this.setResult(message, 'success');
-      this.addHistoryEntry(
-        `Arithmetic: ${parsed.valA} ${parsed.unitA} * ${parsed.valB} ${parsed.unitB}`,
-        message
-      );
       return;
     }
 
@@ -351,10 +373,7 @@ export class DashboardPageComponent {
           `${parsed.valA} ${parsed.unitA} ${symbolMap[this.currentOp as Exclude<ArithmeticOp, '*'>]} ` +
           `${parsed.valB} ${parsed.unitB} = ${resultValue}${resultUnit}`;
         this.setResult(message, 'success');
-        this.addHistoryEntry(
-          `Arithmetic: ${parsed.valA} ${parsed.unitA} ${this.currentOp} ${parsed.valB} ${parsed.unitB}`,
-          message
-        );
+        this.loadHistory();
       },
       error: (error) => this.handleOperationError(error)
     });
@@ -453,59 +472,52 @@ export class DashboardPageComponent {
     this.resultStyle = style;
   }
 
-  private addHistoryEntry(label: string, result: string): void {
-    if (!this.user) {
+  private loadHistory(showRefreshToast = false): void {
+    if (!this.isAuthenticated || !this.user) {
+      this.historyEntries = [];
+      this.currentOperationCount = 0;
+      this.errorHistoryCount = 0;
       return;
     }
 
-    const nextEntry: HistoryEntry = {
-      label,
-      result,
-      type: this.currentType,
-      time: new Date().toLocaleTimeString(),
-      date: new Date().toLocaleDateString()
+    this.isHistoryLoading = true;
+
+    const operation = this.getSelectedBackendOperation();
+    const requests = {
+      history: this.quantityService.getHistoryByMeasurementType(this.currentMeasurementType),
+      errors: this.quantityService.getErrorHistory(),
+      count: operation ? this.quantityService.getOperationCount(operation) : null
     };
 
-    const history = this.readHistory();
-    const first = history[0];
-    if (first && first.label === nextEntry.label && first.result === nextEntry.result) {
-      return;
-    }
+    forkJoin({
+      history: requests.history,
+      errors: requests.errors,
+      count: requests.count ?? of(0)
+    })
+      .pipe(finalize(() => (this.isHistoryLoading = false)))
+      .subscribe({
+      next: ({ history, errors, count }) => {
+        const filteredHistory = this.applyHistoryClearMarker(history, this.currentMeasurementType);
+        const filteredErrors = this.applyHistoryClearMarker(errors, this.currentMeasurementType);
 
-    history.unshift(nextEntry);
-    if (history.length > 100) {
-      history.pop();
-    }
-
-    localStorage.setItem(this.getHistoryKey(this.user.email), JSON.stringify(history));
-    if (this.historyOpen) {
-      this.historyEntries = history;
-    }
-  }
-
-  private loadHistory(): void {
-    this.historyEntries = this.readHistory();
-  }
-
-  private readHistory(): HistoryEntry[] {
-    if (!this.user) {
-      return [];
-    }
-
-    const raw = localStorage.getItem(this.getHistoryKey(this.user.email));
-    if (!raw) {
-      return [];
-    }
-
-    try {
-      return JSON.parse(raw) as HistoryEntry[];
-    } catch {
-      return [];
-    }
-  }
-
-  private getHistoryKey(email: string): string {
-    return `qm_history_${email}`;
+        this.historyEntries = filteredHistory
+          .slice()
+          .reverse()
+          .map((entry) => this.toHistoryEntry(entry));
+        this.errorHistoryCount = filteredErrors.filter(
+          (entry) => entry.thisMeasurementType === this.currentMeasurementType
+        ).length;
+        this.currentOperationCount = Array.isArray(count)
+          ? 0
+          : filteredHistory.filter((entry) => entry.operation === operation && !entry.isError).length;
+        if (showRefreshToast) {
+          this.toastService.show('History refreshed from backend.');
+        }
+      },
+      error: (error: HttpErrorResponse) => {
+        this.toastService.show(this.extractApiError(error, 'Unable to load history.'), true);
+      }
+    });
   }
 
   private clearInputs(): void {
@@ -518,8 +530,10 @@ export class DashboardPageComponent {
   }
 
   private handleOperationError(error: HttpErrorResponse): void {
-    const apiError = error.error as ApiError;
-    const message = apiError?.message ?? 'Operation failed. Please check your input values.';
+    const message = this.extractApiError(
+      error,
+      'Operation failed. Please check your input values.'
+    );
     this.setResult(message, 'warning');
   }
 
@@ -541,7 +555,7 @@ export class DashboardPageComponent {
   }
 
   private toBase(value: number, unit: string, measurementType: MeasurementType): number {
-    if (measurementType === 'TemperatureUnit') {
+    if (measurementType === 'Temperature') {
       return this.temperatureToCelsius(value, unit);
     }
 
@@ -558,25 +572,103 @@ export class DashboardPageComponent {
 
   private getLinearFactor(unit: string): number {
     const map: Record<string, number> = {
-      FEET: 0.3048,
-      INCHES: 0.0254,
-      YARDS: 0.9144,
-      CENTIMETERS: 0.01,
-      KILOGRAM: 1000,
-      GRAM: 1,
-      POUND: 453.592,
-      LITRE: 1000,
-      MILLILITRE: 1,
-      GALLON: 3785.41
+      MM: 0.001,
+      CM: 0.01,
+      METER: 1,
+      KM: 1000,
+      INCH: 0.0254,
+      FOOT: 0.3048,
+      YARD: 0.9144,
+      MILE: 1609.34,
+      MG: 0.000001,
+      GRAM: 0.001,
+      KG: 1,
+      OUNCE: 0.0283495,
+      POUND: 0.453592,
+      ML: 0.001,
+      LITER: 1,
+      GALLON: 3.78541,
+      PINT: 0.473176,
+      CUBIC_METER: 1000
     };
     return map[unit] ?? 1;
   }
 
   private baseUnitLabel(measurementType: MeasurementType): string {
-    if (measurementType === 'LengthUnit') return 'm';
-    if (measurementType === 'WeightUnit') return 'g';
-    if (measurementType === 'VolumeUnit') return 'ml';
+    if (measurementType === 'Length') return 'm';
+    if (measurementType === 'Weight') return 'kg';
+    if (measurementType === 'Volume') return 'l';
     return '\u00B0C';
+  }
+
+  private getSelectedBackendOperation(): BackendOperation | null {
+    if (this.currentAction === 'comparison') {
+      return 'compare';
+    }
+
+    if (this.currentAction === 'conversion') {
+      return 'convert';
+    }
+
+    if (this.currentOp === '*') {
+      return null;
+    }
+
+    const operationMap: Record<Exclude<ArithmeticOp, '*'>, BackendOperation> = {
+      '+': 'add',
+      '-': 'subtract',
+      '/': 'divide'
+    };
+    return operationMap[this.currentOp as Exclude<ArithmeticOp, '*'>];
+  }
+
+  private toHistoryEntry(entry: QuantityMeasurementDto): HistoryEntry {
+    const createdAt = entry.createdAt ? new Date(entry.createdAt) : new Date();
+    const operationLabel = entry.operation.charAt(0).toUpperCase() + entry.operation.slice(1);
+    const left = `${this.formatNumber(entry.thisValue)} ${entry.thisUnit}`;
+    const right = `${this.formatNumber(entry.thatValue)} ${entry.thatUnit}`;
+    const result =
+      entry.resultString && entry.operation === 'compare'
+        ? `${left} vs ${right} = ${entry.resultString}`
+        : `${left} ${this.operationSymbol(entry.operation)} ${right} = ${this.formatHistoryResult(entry)}`;
+
+    return {
+      label: `${operationLabel} (${entry.thisMeasurementType})`,
+      result,
+      type: this.currentType,
+      time: createdAt.toLocaleTimeString(),
+      date: createdAt.toLocaleDateString()
+    };
+  }
+
+  private operationSymbol(operation: string): string {
+    if (operation === 'compare') return 'vs';
+    if (operation === 'convert') return '->';
+    if (operation === 'add') return '+';
+    if (operation === 'subtract') return '-';
+    if (operation === 'divide') return '/';
+    return '=';
+  }
+
+  private formatHistoryResult(entry: QuantityMeasurementDto): string {
+    if (entry.resultUnit) {
+      return `${this.formatNumber(entry.resultValue)} ${entry.resultUnit}`;
+    }
+
+    if (entry.resultString) {
+      return entry.resultString;
+    }
+
+    return this.formatNumber(entry.resultValue);
+  }
+
+  private extractApiError(error: HttpErrorResponse, fallback: string): string {
+    if (typeof error.error === 'string' && error.error.trim()) {
+      return error.error;
+    }
+
+    const apiError = error.error as ApiError;
+    return apiError?.message ?? apiError?.error ?? fallback;
   }
 
   formatNumber(value: number): string {
@@ -597,5 +689,69 @@ export class DashboardPageComponent {
       .toLowerCase()
       .replace(/_/g, ' ')
       .replace(/\b\w/g, (char) => char.toUpperCase());
+  }
+
+  private applyHistoryClearMarker(
+    entries: QuantityMeasurementDto[],
+    measurementType: MeasurementType
+  ): QuantityMeasurementDto[] {
+    const clearedAt = this.getHistoryClearMarker(measurementType);
+    if (!clearedAt) {
+      return entries;
+    }
+
+    const clearedTime = new Date(clearedAt).getTime();
+    if (Number.isNaN(clearedTime)) {
+      return entries;
+    }
+
+    return entries.filter((entry) => {
+      if (entry.thisMeasurementType !== measurementType) {
+        return true;
+      }
+
+      if (!entry.createdAt) {
+        return false;
+      }
+
+      const createdTime = new Date(entry.createdAt).getTime();
+      return !Number.isNaN(createdTime) && createdTime > clearedTime;
+    });
+  }
+
+  private getHistoryClearMarker(measurementType: MeasurementType): string | null {
+    try {
+      const raw = localStorage.getItem(DashboardPageComponent.historyClearStorageKey);
+      if (!raw) {
+        return null;
+      }
+
+      const markers = JSON.parse(raw) as Partial<Record<MeasurementType, string>>;
+      return markers[measurementType] ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  private setHistoryClearMarker(measurementType: MeasurementType, value: string | null): void {
+    try {
+      const raw = localStorage.getItem(DashboardPageComponent.historyClearStorageKey);
+      const markers = raw
+        ? (JSON.parse(raw) as Partial<Record<MeasurementType, string>>)
+        : {};
+
+      if (value) {
+        markers[measurementType] = value;
+      } else {
+        delete markers[measurementType];
+      }
+
+      localStorage.setItem(
+        DashboardPageComponent.historyClearStorageKey,
+        JSON.stringify(markers)
+      );
+    } catch {
+      // Ignore storage issues and let backend history render normally.
+    }
   }
 }

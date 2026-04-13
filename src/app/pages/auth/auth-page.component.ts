@@ -32,6 +32,8 @@ export class AuthPageComponent {
   isLoginSubmitting = false;
   isSignupSubmitting = false;
   isGoogleSubmitting = false;
+  isGoogleAvailable = false;
+  isAuthConfigLoading = true;
 
   readonly loginForm = this.fb.nonNullable.group({
     email: ['', [Validators.required, Validators.email]],
@@ -59,6 +61,17 @@ export class AuthPageComponent {
     if (this.authService.isAuthenticated()) {
       void this.router.navigateByUrl('/dashboard');
     }
+
+    this.authService.getAuthConfig().subscribe({
+      next: (config) => {
+        this.isGoogleAvailable = config.googleOauthEnabled;
+        this.isAuthConfigLoading = false;
+      },
+      error: () => {
+        this.isGoogleAvailable = false;
+        this.isAuthConfigLoading = false;
+      }
+    });
   }
 
   setTab(tab: AuthTab): void {
@@ -125,7 +138,15 @@ export class AuthPageComponent {
   }
 
   handleGoogleLogin(): void {
-    if (this.isGoogleSubmitting) {
+    if (this.isGoogleSubmitting || this.isAuthConfigLoading) {
+      return;
+    }
+
+    if (!this.isGoogleAvailable) {
+      this.toastService.show(
+        'Google sign-in is not configured in the backend yet. Add Google OAuth client credentials first.',
+        true
+      );
       return;
     }
 
@@ -197,9 +218,16 @@ export class AuthPageComponent {
   }
 
   private extractErrorMessage(error: HttpErrorResponse): string {
+    if (typeof error.error === 'string' && error.error.trim()) {
+      return error.error;
+    }
+
     const apiError = error.error as ApiError;
-    if (apiError?.message) {
+    if (apiError?.message?.trim()) {
       return apiError.message;
+    }
+    if (apiError?.error?.trim()) {
+      return apiError.error;
     }
     return 'Unable to process request. Check backend logs and try again.';
   }

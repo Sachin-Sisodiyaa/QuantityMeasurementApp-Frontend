@@ -288,6 +288,13 @@
   opacity: 0.8;
 }
 
+.oauth-hint {
+  margin: -4px 0 2px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+
 .auth-switch {
   text-align: center;
   font-size: 13px;

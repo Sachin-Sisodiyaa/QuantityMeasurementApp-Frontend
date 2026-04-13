@@ -22,8 +22,12 @@ export interface UserProfile {
 export interface AuthResponse {
   token: string;
   tokenType: string;
-  expiresInSeconds: number;
+  expiresIn: number;
   user: UserProfile;
+}
+
+export interface AuthConfig {
+  googleOauthEnabled: boolean;
 }
 
 export interface ApiError {

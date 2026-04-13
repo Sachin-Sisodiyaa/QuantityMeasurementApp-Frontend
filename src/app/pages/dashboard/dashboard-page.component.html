@@ -203,13 +203,41 @@
     <div class="history-header">
       <h3>Calculation History</h3>
       <div class="history-header-actions">
-        <button class="btn-clear-history" type="button" (click)="clearHistory()">&#128465; Clear All</button>
+        <button
+          class="btn-clear-history"
+          type="button"
+          [disabled]="isHistoryLoading || isClearingHistory"
+          (click)="clearHistory()"
+        >
+          {{ isClearingHistory ? 'Clearing...' : 'Clear History' }}
+        </button>
         <button class="btn-close-history" type="button" (click)="toggleHistory()">&#10005;</button>
       </div>
     </div>
 
+    <p class="history-helper-text">
+      Clear History removes saved entries for the selected measurement type.
+    </p>
+
     <div id="history-list">
-      @if (!historyEntries.length) {
+      <div class="history-stats">
+        <div class="history-stat">
+          <span class="history-stat-label">Type</span>
+          <strong>{{ currentMeasurementType }}</strong>
+        </div>
+        <div class="history-stat">
+          <span class="history-stat-label">Operation Count</span>
+          <strong>{{ currentOperationCount }}</strong>
+        </div>
+        <div class="history-stat">
+          <span class="history-stat-label">Errors</span>
+          <strong>{{ errorHistoryCount }}</strong>
+        </div>
+      </div>
+
+      @if (isHistoryLoading) {
+        <div class="history-empty">Loading backend history...</div>
+      } @else if (!historyEntries.length) {
         <div class="history-empty">No calculations yet. Start measuring!</div>
       } @else {
         @for (entry of historyEntries; track $index) {
