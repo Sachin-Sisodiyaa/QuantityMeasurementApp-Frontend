@@ -4,7 +4,7 @@ export type MeasurementType =
   | 'Weight'
   | 'Temperature';
 
-export type OperationType = 'compare' | 'convert' | 'add' | 'subtract' | 'divide';
+export type OperationType = 'compare' | 'convert' | 'add' | 'subtract' | 'multiply' | 'divide';
 
 export interface QuantityDto {
   value: number;

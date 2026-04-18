@@ -21,7 +21,7 @@ type UiAction = 'comparison' | 'conversion' | 'arithmetic';
 type ArithmeticOp = '+' | '-' | '*' | '/';
 type BannerStyle = 'default' | 'success' | 'warning';
 
-type BackendOperation = 'compare' | 'convert' | 'add' | 'subtract' | 'divide';
+type BackendOperation = 'compare' | 'convert' | 'add' | 'subtract' | 'multiply' | 'divide';
 
 interface TypeCard {
   key: UiTypeKey;
@@ -340,11 +340,18 @@ export class DashboardPageComponent {
     }
 
     if (this.currentOp === '*') {
-      const local = parsed.valA * parsed.valB;
-      const message =
-        `${parsed.valA} ${parsed.unitA} \u00D7 ${parsed.valB} ${parsed.unitB} = ` +
-        `${this.formatNumber(local)}`;
-      this.setResult(message, 'success');
+      this.executeBackendOperation('multiply', parsed).subscribe({
+        next: (response) => {
+          const resultValue = this.formatNumber(response.resultValue);
+          const rightUnit = parsed.unitB || parsed.unitA;
+          const message =
+            `${parsed.valA} ${parsed.unitA} \u00D7 ${parsed.valB} ${rightUnit} = ` +
+            `${resultValue} ${response.resultUnit}`;
+          this.setResult(message, 'success');
+          this.loadHistory();
+        },
+        error: (error) => this.handleOperationError(error)
+      });
       return;
     }
 
@@ -611,7 +618,7 @@ export class DashboardPageComponent {
     }
 
     if (this.currentOp === '*') {
-      return null;
+      return 'multiply';
     }
 
     const operationMap: Record<Exclude<ArithmeticOp, '*'>, BackendOperation> = {
@@ -646,6 +653,7 @@ export class DashboardPageComponent {
     if (operation === 'convert') return '->';
     if (operation === 'add') return '+';
     if (operation === 'subtract') return '-';
+    if (operation === 'multiply') return '*';
     if (operation === 'divide') return '/';
     return '=';
   }
